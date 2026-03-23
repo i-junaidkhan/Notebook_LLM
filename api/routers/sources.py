@@ -816,15 +816,18 @@ async def retry_source_processing(source_id: str):
                 )
                 # Continue with retry if we can't check status
 
-        # Get notebooks that this source belongs to
-        query = "SELECT notebook FROM reference WHERE source = $source_id"
-        references = await repo_query(query, {"source_id": source_id})
-        notebook_ids = [str(ref["notebook"]) for ref in references]
+                # Get notebooks that this source belongs to
+        from open_notebook.database.repository import ensure_record_id # Make sure this is imported at the top if not already
+        
+        query = "SELECT VALUE out FROM reference WHERE in = $source_id"
+        references = await repo_query(query, {"source_id": ensure_record_id(source_id)})
+        notebook_ids = [str(nb_id) for nb_id in references] if references else []
 
         if not notebook_ids:
             raise HTTPException(
                 status_code=400, detail="Source is not associated with any notebooks"
             )
+
 
         # Prepare content_state based on source asset
         content_state = {}

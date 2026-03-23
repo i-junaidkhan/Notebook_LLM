@@ -15,9 +15,15 @@ class MindMapState(dict):
 
 async def extract_concepts(state: MindMapState) -> MindMapState:
     """Extract key concepts from sources using LLM."""
-    model = await provision_langchain_model(task="extraction")
-    
     combined_text = "\n\n".join(state["sources_text"][:10])
+    
+    # Use "transformation" type (which you have configured)
+    model = await provision_langchain_model(
+        content=combined_text,
+        model_id=None,
+        default_type="transformation"
+    )
+
     prompt = f"""Extract 20-30 key concepts or topics from this text (1-5 words each).
 Return ONLY a JSON array of strings, nothing else.
 
@@ -39,7 +45,7 @@ Output format: ["concept1", "concept2", ...]"""
     except Exception as e:
         state["error"] = str(e)
         state["concepts"] = []
-    
+
     return state
 
 
@@ -47,9 +53,16 @@ async def build_hierarchy(state: MindMapState) -> MindMapState:
     """Build tree hierarchy from concepts using LLM."""
     if state.get("error") or not state["concepts"]:
         return state
+
+    combined_text = "\n\n".join(state["sources_text"][:10])
     
-    model = await provision_langchain_model(task="chat")
-    
+    # Use "chat" type (which you have configured)
+    model = await provision_langchain_model(
+        content=combined_text,
+        model_id=None,
+        default_type="chat"
+    )
+
     concepts_str = ", ".join(state["concepts"])
     prompt = f"""Group these concepts into a mind map tree with at most 7 main branches.
 Each branch should have 2-10 sub-concepts.
@@ -69,7 +82,6 @@ Return ONLY this JSON structure:
 }}
 
 Concepts: {concepts_str}"""
-
     try:
         response = await model.ainvoke([HumanMessage(content=prompt)])
         content = response.content.strip()
@@ -81,7 +93,7 @@ Concepts: {concepts_str}"""
             state["error"] = "No JSON found in response"
     except Exception as e:
         state["error"] = str(e)
-    
+
     return state
 
 
