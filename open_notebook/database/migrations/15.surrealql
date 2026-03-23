@@ -1,0 +1,22 @@
+-- Mind Map tables for concept graph storage
+DEFINE TABLE mindmap SCHEMAFULL;
+DEFINE FIELD notebook ON mindmap TYPE record<notebook>;
+DEFINE FIELD title ON mindmap TYPE string;
+DEFINE FIELD root_node_id ON mindmap TYPE string;
+DEFINE FIELD created_at ON mindmap TYPE datetime DEFAULT time::now();
+DEFINE FIELD updated_at ON mindmap TYPE datetime DEFAULT time::now();
+
+DEFINE TABLE mindmap_node SCHEMAFULL;
+DEFINE FIELD mindmap ON mindmap_node TYPE record<mindmap>;
+DEFINE FIELD label ON mindmap_node TYPE string;
+DEFINE FIELD summary ON mindmap_node TYPE option<string>;
+DEFINE FIELD level ON mindmap_node TYPE int DEFAULT 0;
+DEFINE FIELD source_refs ON mindmap_node TYPE option<array>;
+DEFINE FIELD position_x ON mindmap_node TYPE option<float>;
+DEFINE FIELD position_y ON mindmap_node TYPE option<float>;
+
+DEFINE TABLE mindmap_edge SCHEMAFULL;
+DEFINE FIELD mindmap ON mindmap_edge TYPE record<mindmap>;
+DEFINE FIELD from_node ON mindmap_edge TYPE record<mindmap_node>;
+DEFINE FIELD to_node ON mindmap_edge TYPE record<mindmap_node>;
+DEFINE FIELD relation_type ON mindmap_edge TYPE string DEFAULT 'parent-child';

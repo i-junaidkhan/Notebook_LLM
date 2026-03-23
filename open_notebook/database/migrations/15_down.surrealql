@@ -1,0 +1,3 @@
+REMOVE TABLE mindmap_edge;
+REMOVE TABLE mindmap_node;
+REMOVE TABLE mindmap;

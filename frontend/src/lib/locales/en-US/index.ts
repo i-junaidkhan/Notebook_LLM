@@ -206,6 +206,7 @@ export const enUS = {
     notebooks: "Notebooks",
     askAndSearch: "Ask and Search",
     podcasts: "Podcasts",
+    mindmap: "Mind Map",
     models: "Models",
     transformations: "Transformations",
     transformation: "Transformation",

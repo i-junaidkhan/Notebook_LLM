@@ -41,6 +41,7 @@ import {
   Plus,
   Wrench,
   Command,
+  Network,
 } from 'lucide-react'
 
 const getNavigation = (t: TranslationKeys) => [
@@ -61,6 +62,7 @@ const getNavigation = (t: TranslationKeys) => [
     title: t.navigation.create,
     items: [
       { name: t.navigation.podcasts, href: '/podcasts', icon: Mic },
+      { name: t.navigation.mindmap, href: '/mindmap', icon: Network },
     ],
   },
   {
@@ -185,7 +187,7 @@ export function AppSidebar() {
                       </Button>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
-                   <TooltipContent side="right">{t.common.create}</TooltipContent>
+                  <TooltipContent side="right">{t.common.create}</TooltipContent>
                 </Tooltip>
               ) : (
                 <DropdownMenuTrigger asChild>
@@ -194,7 +196,7 @@ export function AppSidebar() {
                     variant="default"
                     size="sm"
                     className="w-full justify-start bg-primary hover:bg-primary/90 text-primary-foreground border-0"
-                   >
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     {t.common.create}
                   </Button>
@@ -213,7 +215,7 @@ export function AppSidebar() {
                   }}
                   className="gap-2"
                 >
-                   <FileText className="h-4 w-4" />
+                  <FileText className="h-4 w-4" />
                   {t.common.source}
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -223,7 +225,7 @@ export function AppSidebar() {
                   }}
                   className="gap-2"
                 >
-                   <Book className="h-4 w-4" />
+                  <Book className="h-4 w-4" />
                   {t.common.notebook}
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -233,7 +235,7 @@ export function AppSidebar() {
                   }}
                   className="gap-2"
                 >
-                   <Mic className="h-4 w-4" />
+                  <Mic className="h-4 w-4" />
                   {t.common.podcast}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -302,7 +304,7 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="px-3 py-1.5 text-xs text-sidebar-foreground/60">
               <div className="flex items-center justify-between">
-                 <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5">
                   <Command className="h-3 w-3" />
                   {t.common.quickActions}
                 </span>
@@ -310,13 +312,13 @@ export function AppSidebar() {
                   {isMac ? <span className="text-xs">⌘</span> : <span>Ctrl+</span>}K
                 </kbd>
               </div>
-               <p className="mt-1 text-[10px] text-sidebar-foreground/40">
+              <p className="mt-1 text-[10px] text-sidebar-foreground/40">
                 {t.common.quickActionsDesc}
               </p>
             </div>
           )}
 
-           <div
+          <div
             className={cn(
               'flex flex-col gap-2',
               isCollapsed ? 'items-center' : 'items-stretch'
@@ -361,7 +363,7 @@ export function AppSidebar() {
                   <LogOut className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-               <TooltipContent side="right">{t.common.signOut}</TooltipContent>
+              <TooltipContent side="right">{t.common.signOut}</TooltipContent>
             </Tooltip>
           ) : (
             <Button
@@ -369,7 +371,7 @@ export function AppSidebar() {
               className="w-full justify-start gap-3 sidebar-menu-item"
               onClick={logout}
               aria-label={t.common.signOut}
-             >
+            >
               <LogOut className="h-4 w-4" />
               {t.common.signOut}
             </Button>
