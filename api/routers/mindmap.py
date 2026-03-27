@@ -75,7 +75,7 @@ async def generate_mindmap(notebook_id: str):
                 text_length = len(source.full_text) if source.full_text else 0
                 logger.info(f"Source {source.id}: full_text length = {text_length}")
                 if source.full_text:
-                    sources_text.append(source.full_text[:5000])
+                    sources_text.append(source.full_text)
         
         if not sources_text:
             raise HTTPException(status_code=400, detail="No source content available")

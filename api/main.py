@@ -118,8 +118,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Open Notebook API",
-    description="API for Open Notebook - Research Assistant",
+    title="CogniFlow API",
+    description="API for CogniFlow - Research WorkSpace",
     lifespan=lifespan,
 )
 
@@ -286,7 +286,7 @@ app.include_router(mindmap.router, prefix="/api", tags=["mindmap"])
 
 @app.get("/")
 async def root():
-    return {"message": "Open Notebook API is running"}
+    return {"message": "CogniFlow API is running"}
 
 
 @app.get("/health")
