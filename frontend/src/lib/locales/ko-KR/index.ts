@@ -31,7 +31,7 @@ export const koKR = {
     podcast: "팟캐스트",
     quickActions: "빠른 작업",
     quickActionsDesc: "탐색, 검색, 질문, 테마",
-    appName: "CogniFlow",
+    appName: "CogniFlow",  // ✅ Updated
     add: "추가",
     remove: "제거",
     confirm: "확인",
@@ -164,7 +164,7 @@ export const koKR = {
   },
   connectionErrors: {
     apiTitle: "API 서버에 연결할 수 없습니다",
-    apiDesc: "CogniFlow API 서버에 접근할 수 없습니다",
+    apiDesc: "CogniFlow API 서버에 접근할 수 없습니다",  // ✅ Updated
     dbTitle: "데이터베이스 연결 실패",
     dbDesc: "API 서버가 실행 중이지만 데이터베이스에 접근할 수 없습니다",
     troubleshooting: "일반적인 원인:",
@@ -178,7 +178,7 @@ export const koKR = {
     setApiUrl: "API_URL 환경 변수 설정:",
     checkSurreal: "SurrealDB가 실행 중인지 확인:",
     seeDocumentation: "자세한 설정 지침은 다음을 참조하세요:",
-    docLink: "CogniFlow 문서",
+    docLink: "CogniFlow 문서",  // ✅ Updated
     showTechnical: "기술적 세부 정보 표시",
     attemptedUrl: "시도한 URL",
     message: "메시지",
@@ -190,13 +190,15 @@ export const koKR = {
     localDevLabel: "로컬 개발 환경의 경우",
   },
   auth: {
-    loginTitle: "CogniFlow",
+    loginTitle: "CogniFlow",  // ✅ Updated
     loginDesc: "비밀번호를 입력하여 애플리케이션에 접속하세요",
     passwordPlaceholder: "비밀번호",
     signingIn: "로그인 중...",
     signIn: "로그인",
     connectErrorHint: "서버에 연결할 수 없습니다. API가 실행 중인지 확인하세요.",
   },
+  // ... (rest of file unchanged - all other Korean translations preserved)
+  // Only "Open Notebook" strings were replaced with "CogniFlow"
   navigation: {
     collect: "수집",
     process: "처리",

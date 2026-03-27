@@ -1,7 +1,7 @@
 import json
 from typing import List, Dict, Any, Optional
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from open_notebook.ai.provision import provision_langchain_model
 
 
@@ -16,8 +16,7 @@ class MindMapState(dict):
 async def extract_concepts(state: MindMapState) -> MindMapState:
     """Extract key concepts from sources using LLM."""
     combined_text = "\n\n".join(state["sources_text"][:10])
-    
-    # Use "transformation" type (which you have configured)
+
     model = await provision_langchain_model(
         content=combined_text,
         model_id=None,
@@ -55,8 +54,7 @@ async def build_hierarchy(state: MindMapState) -> MindMapState:
         return state
 
     combined_text = "\n\n".join(state["sources_text"][:10])
-    
-    # Use "chat" type (which you have configured)
+
     model = await provision_langchain_model(
         content=combined_text,
         model_id=None,
@@ -64,24 +62,59 @@ async def build_hierarchy(state: MindMapState) -> MindMapState:
     )
 
     concepts_str = ", ".join(state["concepts"])
-    prompt = f"""Group these concepts into a mind map tree with at most 7 main branches.
-Each branch should have 2-10 sub-concepts.
+    
+    # ✅ FIXED PROMPT: Strict JSON schema, no stray text
+    prompt = f"""You are a knowledge graph architect. Build a hierarchical mind map from the provided concepts and source text.
 
-Return ONLY this JSON structure:
+SOURCES:
+{combined_text[:12000]}
+
+CONCEPTS TO ORGANIZE:
+{concepts_str}
+
+REQUIREMENTS:
+1. Output MUST be valid JSON matching this EXACT schema:
 {{
-    "root": "Main Topic",
-    "children": [
+  "root": "Concise main topic (max 8 words)",
+  "children": [
+    {{
+      "label": "Branch name (max 6 words)",
+      "summary": "One-sentence explanation of this branch",
+      "level": 1,
+      "source_refs": ["keyword1", "keyword2"],
+      "children": [
         {{
-            "label": "Branch 1",
-            "children": [
-                {{"label": "Sub-concept 1"}},
-                {{"label": "Sub-concept 2"}}
-            ]
+          "label": "Sub-branch name",
+          "summary": "One-sentence explanation",
+          "level": 2,
+          "source_refs": ["keyword3"],
+          "children": []
         }}
-    ]
+      ]
+    }}
+  ]
 }}
 
-Concepts: {concepts_str}"""
+2. STRUCTURE RULES:
+   - Root level: 3-5 main branches MAX
+   - Each branch: 2-4 sub-branches MAX
+   - Max depth: 3 levels (root → branch → sub-branch)
+   - No empty "children" arrays
+
+3. CONTENT RULES:
+   - Labels: Concrete, specific, action-oriented (NOT "Overview", "Introduction")
+   - Summaries: Factual, max 20 words, derived from SOURCES above
+   - source_refs: Include 1-3 keywords from the concept list that support each node
+   - level: Integer (1 for main branches, 2 for sub-branches)
+
+4. OUTPUT FORMAT:
+   - Return ONLY the JSON object, no markdown, no explanations
+   - Use double quotes for all strings
+   - Escape special characters properly
+
+If concepts are insufficient or unrelated, return: {{"error": "Insufficient content to generate mind map"}}
+"""
+    
     try:
         response = await model.ainvoke([HumanMessage(content=prompt)])
         content = response.content.strip()
