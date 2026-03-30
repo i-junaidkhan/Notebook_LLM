@@ -52,33 +52,26 @@ def _validate_mindmap_tree(tree: Dict[str, Any], max_depth: int = 3, max_branche
     """Validate mindmap tree structure before database insertion."""
     if not isinstance(tree, dict) or "root" not in tree or "children" not in tree:
         return False, "Invalid tree structure: missing root or children"
-    
+
     def _validate_node(node: Dict, level: int) -> tuple[bool, str]:
-    # Validate label: must be non-empty string
         if not isinstance(node.get("label"), str) or not node["label"].strip():
             return False, f"Invalid label at level {level}"
-        
-        # Validate summary: optional, but if present must be string
         summary = node.get("summary")
         if summary is not None and not isinstance(summary, str):
             return False, f"Invalid summary at level {level}"
-        
-        # Validate depth
         if level > max_depth:
             return False, f"Tree exceeds max depth {max_depth}"
-        
-        # Validate children
         children = node.get("children", [])
         if not isinstance(children, list) or len(children) > max_branches:
             return False, f"Invalid children at level {level} (max {max_branches})"
-        
-        # Recurse into children
         for child in children:
             valid, msg = _validate_node(child, level + 1)
             if not valid:
                 return False, msg
-        
         return True, "OK"
+
+    # Call the inner validator on the root node
+    return _validate_node(tree, 0)
 
 
 @router.post("/notebooks/{notebook_id}/mindmap")

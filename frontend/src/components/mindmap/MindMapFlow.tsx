@@ -14,6 +14,7 @@ import {
     Handle,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import dagre from 'dagre'
 
 interface MindMapNodeData {
     label: string
@@ -53,64 +54,64 @@ const MindMapNode = ({ data }: { data: MindMapNodeData }) => {
     )
 }
 
+// Dagre layout helper
+const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+    dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 60 });
+
+    nodes.forEach((node) => {
+        dagreGraph.setNode(node.id, { width: 160, height: 60 });
+    });
+
+    edges.forEach((edge) => {
+        dagreGraph.setEdge(edge.from_node, edge.to_node);
+    });
+
+    dagre.layout(dagreGraph);
+
+    const layoutedNodes = nodes.map((node) => {
+        const nodeWithPosition = dagreGraph.node(node.id);
+        return {
+            ...node,
+            position: {
+                x: nodeWithPosition.x - 80,
+                y: nodeWithPosition.y - 30,
+            },
+        };
+    });
+
+    return { nodes: layoutedNodes, edges };
+};
+
 export function MindMapFlow({ nodes: inputNodes, edges: inputEdges, onNodeClick }: MindMapFlowProps) {
     const nodeTypes = useMemo(() => ({ mindmap: MindMapNode }), [])
 
-    // Calculate tree layout
-    const calculateLayout = useCallback(() => {
-        const levelWidth = 250
-        const nodeHeight = 80
-        const levelNodes: { [key: number]: string[] } = {}
+    // Convert input data to React Flow nodes and edges with layout
+    const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+        const flowNodes: Node[] = inputNodes.map((node) => ({
+            id: node.id,
+            type: 'mindmap',
+            data: {
+                label: node.label,
+                summary: node.summary,
+                level: node.level,
+            },
+            position: { x: 0, y: 0 }, // temporary, will be overwritten
+        }));
 
-        // Group by level
-        inputNodes.forEach(node => {
-            if (!levelNodes[node.level]) levelNodes[node.level] = []
-            levelNodes[node.level].push(node.id)
-        })
-
-        const positionedNodes: Node[] = []
-        const maxLevel = Math.max(...Object.keys(levelNodes).map(Number))
-
-        for (let level = 0; level <= maxLevel; level++) {
-            const nodesAtLevel = levelNodes[level] || []
-            const totalHeight = nodesAtLevel.length * nodeHeight
-            const startY = -(totalHeight / 2)
-
-            nodesAtLevel.forEach((nodeId, index) => {
-                const node = inputNodes.find(n => n.id === nodeId)
-                if (node) {
-                    positionedNodes.push({
-                        id: node.id,
-                        type: 'mindmap',
-                        position: {
-                            x: level * levelWidth,
-                            y: startY + (index * nodeHeight),
-                        },
-                        data: {
-                            label: node.label,
-                            summary: node.summary,
-                            level: node.level,
-                        },
-                    })
-                }
-            })
-        }
-
-        return positionedNodes
-    }, [inputNodes])
-
-    const initialNodes = useMemo(() => calculateLayout(), [calculateLayout])
-
-    const initialEdges: Edge[] = useMemo(() => {
-        return inputEdges.map(edge => ({
+        const flowEdges: Edge[] = inputEdges.map((edge) => ({
             id: edge.id,
             source: edge.from_node,
             target: edge.to_node,
             type: 'smoothstep',
             animated: false,
             style: { stroke: '#94a3b8', strokeWidth: 2 },
-        }))
-    }, [inputEdges])
+        }));
+
+        // Apply layout
+        return getLayoutedElements(flowNodes, flowEdges);
+    }, [inputNodes, inputEdges]);
 
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)

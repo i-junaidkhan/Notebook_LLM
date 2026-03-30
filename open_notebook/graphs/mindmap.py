@@ -49,45 +49,47 @@ Output format: ["concept1", "concept2", ...]"""
 
 
 async def build_hierarchy(state: MindMapState) -> MindMapState:
-    """Build tree hierarchy from concepts using LLM."""
     if state.get("error") or not state["concepts"]:
         return state
 
     combined_text = "\n\n".join(state["sources_text"][:10])
-
-    model = await provision_langchain_model(
-        content=combined_text,
-        model_id=None,
-        default_type="chat"
-    )
-
+    model = await provision_langchain_model(content=combined_text, default_type="chat")
     concepts_str = ", ".join(state["concepts"])
-    
-    # ✅ FIXED PROMPT: Strict JSON schema, no stray text
-    prompt = f"""You are a knowledge graph architect. Build a hierarchical mind map from the provided concepts and source text.
 
-SOURCES:
-{combined_text[:12000]}
+    prompt = f"""You are a knowledge graph architect. Build a hierarchical mind map with **exactly 3 levels**: Root → Main Branches → Sub-branches.
 
-CONCEPTS TO ORGANIZE:
-{concepts_str}
+Sources:
+{combined_text[:8000]}
 
-REQUIREMENTS:
-1. Output MUST be valid JSON matching this EXACT schema:
+Concepts: {concepts_str}
+
+**Output format (strict JSON, no extra text):**
 {{
-  "root": "Concise main topic (max 8 words)",
+  "root": "Main Topic (max 6 words)",
   "children": [
     {{
-      "label": "Branch name (max 6 words)",
-      "summary": "One-sentence explanation of this branch",
-      "level": 1,
-      "source_refs": ["keyword1", "keyword2"],
+      "label": "Branch 1 (max 5 words)",
+      "summary": "Brief description from sources",
       "children": [
         {{
-          "label": "Sub-branch name",
-          "summary": "One-sentence explanation",
-          "level": 2,
-          "source_refs": ["keyword3"],
+          "label": "Sub-branch 1.1 (max 5 words)",
+          "summary": "Brief description",
+          "children": []
+        }},
+        {{
+          "label": "Sub-branch 1.2",
+          "summary": "...",
+          "children": []
+        }}
+      ]
+    }},
+    {{
+      "label": "Branch 2",
+      "summary": "...",
+      "children": [
+        {{
+          "label": "Sub-branch 2.1",
+          "summary": "...",
           "children": []
         }}
       ]
@@ -95,38 +97,31 @@ REQUIREMENTS:
   ]
 }}
 
-2. STRUCTURE RULES:
-   - Root level: 3-5 main branches MAX
-   - Each branch: 2-4 sub-branches MAX
-   - Max depth: 3 levels (root → branch → sub-branch)
-   - No empty "children" arrays
-
-3. CONTENT RULES:
-   - Labels: Concrete, specific, action-oriented (NOT "Overview", "Introduction")
-   - Summaries: Factual, max 20 words, derived from SOURCES above
-   - source_refs: Include 1-3 keywords from the concept list that support each node
-   - level: Integer (1 for main branches, 2 for sub-branches)
-
-4. OUTPUT FORMAT:
-   - Return ONLY the JSON object, no markdown, no explanations
-   - Use double quotes for all strings
-   - Escape special characters properly
-
-If concepts are insufficient or unrelated, return: {{"error": "Insufficient content to generate mind map"}}
-"""
-    
+Rules:
+- Root → 3–5 main branches.
+- Each main branch → 2–4 sub-branches.
+- Sub-branches have NO further children.
+- Each node must have "label" and "children" (even if empty array).
+- Return ONLY the JSON object."""
     try:
         response = await model.ainvoke([HumanMessage(content=prompt)])
         content = response.content.strip()
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:
-            state["tree_json"] = json.loads(content[start:end])
+            tree = json.loads(content[start:end])
+            # Ensure children arrays exist at all levels
+            def ensure_children(node):
+                if "children" not in node:
+                    node["children"] = []
+                for child in node.get("children", []):
+                    ensure_children(child)
+            ensure_children(tree)
+            state["tree_json"] = tree
         else:
             state["error"] = "No JSON found in response"
     except Exception as e:
         state["error"] = str(e)
-
     return state
 
 
