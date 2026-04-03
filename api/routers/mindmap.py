@@ -10,42 +10,41 @@ from open_notebook.database.repository import ensure_record_id, repo_query
 router = APIRouter()
 
 
-def _tree_to_nodes_edges(tree: Dict[str, Any], mindmap_id: str, parent_id: Optional[str] = None, level: int = 0, counter: List[int] = None):
-    """Convert nested tree JSON to flat nodes and edges."""
+def _flatten_tree(tree: Dict[str, Any], parent_idx: Optional[int] = None, level: int = 0, counter: List[int] = None, nodes_list: List[Dict] = None, edges_list: List[Dict] = None):
+    """Flatten tree into nodes and edges with sequential indices."""
     if counter is None:
         counter = [0]
+    if nodes_list is None:
+        nodes_list = []
+    if edges_list is None:
+        edges_list = []
 
-    nodes = []
-    edges = []
-
-    # Generate unique node ID
-    node_id = f"mindmap_node:{mindmap_id.replace('mindmap:', '')}_{counter[0]}"
+    current_idx = counter[0]
     counter[0] += 1
 
-    node = {
-        "id": node_id,
-        "mindmap": mindmap_id,
+    # Calculate positions for tree layout
+    y_spacing = 150
+    x_spacing = 250
+
+    nodes_list.append({
+        "idx": current_idx,
         "label": tree.get("label", tree.get("root", "Node")),
         "summary": tree.get("summary", ""),
         "level": level,
-        "source_refs": tree.get("source_refs", [])
-    }
-    nodes.append(node)
+        "position_x": current_idx * x_spacing,
+        "position_y": level * y_spacing
+    })
 
-    if parent_id:
-        edges.append({
-            "mindmap": mindmap_id,
-            "from_node": parent_id,
-            "to_node": node_id,
-            "relation_type": "parent-child"
+    if parent_idx is not None:
+        edges_list.append({
+            "parent_idx": parent_idx,
+            "child_idx": current_idx
         })
 
     for child in tree.get("children", []):
-        child_nodes, child_edges = _tree_to_nodes_edges(child, mindmap_id, node_id, level + 1, counter)
-        nodes.extend(child_nodes)
-        edges.extend(child_edges)
-    
-    return nodes, edges
+        _flatten_tree(child, current_idx, level + 1, counter, nodes_list, edges_list)
+
+    return nodes_list, edges_list
 
 
 def _validate_mindmap_tree(tree: Dict[str, Any], max_depth: int = 3, max_branches: int = 5) -> tuple[bool, str]:
@@ -70,7 +69,6 @@ def _validate_mindmap_tree(tree: Dict[str, Any], max_depth: int = 3, max_branche
                 return False, msg
         return True, "OK"
 
-    # Call the inner validator on the root node
     return _validate_node(tree, 0)
 
 
@@ -82,7 +80,6 @@ async def generate_mindmap(notebook_id: str):
         if not notebook:
             raise HTTPException(status_code=404, detail="Notebook not found")
 
-        # Get source IDs linked to this notebook
         source_refs = await repo_query(
             "SELECT VALUE in FROM reference WHERE out = $notebook_id",
             {"notebook_id": ensure_record_id(notebook_id)}
@@ -93,19 +90,17 @@ async def generate_mindmap(notebook_id: str):
         if not source_refs:
             raise HTTPException(status_code=400, detail="No sources linked to this notebook")
 
-        # Fetch full source data including full_text (NO TRUNCATION)
         sources_text = []
         for source_id in source_refs:
             source = await Source.get(str(source_id))
             if source and source.full_text:
-                sources_text.append(source.full_text)  # ✅ Removed [:5000]
+                sources_text.append(source.full_text)
 
         if not sources_text:
             raise HTTPException(status_code=400, detail="No source content available")
 
         logger.info(f"Collected {len(sources_text)} sources with content for mindmap generation")
 
-        # Run the LangGraph mindmap generation
         result = await mindmap_graph.ainvoke({
             "notebook_id": notebook_id,
             "sources_text": sources_text,
@@ -121,11 +116,9 @@ async def generate_mindmap(notebook_id: str):
         if not tree:
             raise HTTPException(status_code=500, detail="No tree structure generated")
 
-        # ✅ Normalize root node: copy "root" value to "label" for validation
         if "root" in tree and "label" not in tree:
             tree["label"] = tree["root"]
 
-        # ✅ Validate tree structure
         is_valid, error_msg = _validate_mindmap_tree(tree)
         if not is_valid:
             logger.error(f"Invalid mindmap structure: {error_msg}")
@@ -133,18 +126,23 @@ async def generate_mindmap(notebook_id: str):
 
         logger.info(f"Generated tree structure: {tree}")
 
-        # Delete existing mindmap if any
+        # === COMPLETE CLEANUP: Delete ALL old mindmap data for this notebook ===
         existing = await repo_query(
             "SELECT * FROM mindmap WHERE notebook = $notebook_id",
             {"notebook_id": ensure_record_id(notebook_id)}
         )
-        if existing:
-            old_id = existing[0]["id"]
+        for old_mindmap in (existing or []):
+            old_id = old_mindmap["id"]
+            logger.info(f"Deleting old mindmap and all related data: {old_id}")
             await repo_query("DELETE FROM mindmap_edge WHERE mindmap = $id", {"id": old_id})
             await repo_query("DELETE FROM mindmap_node WHERE mindmap = $id", {"id": old_id})
             await repo_query("DELETE FROM mindmap WHERE id = $id", {"id": old_id})
 
-        # ✅ Create mindmap record FIRST
+        # Also clean up any orphaned nodes/edges (safety net)
+        await repo_query("DELETE FROM mindmap_node WHERE mindmap = NONE OR mindmap = NULL")
+        await repo_query("DELETE FROM mindmap_edge WHERE mindmap = NONE OR mindmap = NULL")
+
+        # === CREATE MINDMAP RECORD ===
         mindmap_result = await repo_query(
             """
             CREATE mindmap SET
@@ -162,39 +160,46 @@ async def generate_mindmap(notebook_id: str):
             raise Exception("Failed to create mindmap record")
         mindmap_id = mindmap_result[0]["id"]
 
-        # ✅ Generate nodes/edges WITH correct mindmap_id
-        nodes, edges = _tree_to_nodes_edges(tree, mindmap_id)
+        # === FLATTEN TREE TO NODES AND EDGES ===
+        nodes_list, edges_list = _flatten_tree(tree)
+        logger.info(f"Flattened tree: {len(nodes_list)} nodes, {len(edges_list)} edges")
 
-        logger.info(f"Generated {len(nodes)} nodes and {len(edges)} edges")
+        # === CREATE NODES AND CAPTURE THEIR REAL DB IDs ===
+        idx_to_real_id = {}  # Maps our sequential index to actual DB-generated ID
 
-        # ✅ Insert nodes with error handling
-        try:
-            for node in nodes:
-                await repo_query(
-                    """
-                    CREATE mindmap_node SET
-                    mindmap = $mindmap_id,
-                    label = $label,
-                    summary = $summary,
-                    level = $level,
-                    source_refs = $source_refs
-                    """,
-                    {
-                        "mindmap_id": ensure_record_id(mindmap_id),
-                        "label": node["label"],
-                        "summary": node.get("summary", ""),
-                        "level": node.get("level", 0),
-                        "source_refs": node.get("source_refs", [])
-                    }
-                )
-        except Exception as e:
-            # Cleanup on node insert failure
-            await repo_query("DELETE FROM mindmap WHERE id = $id", {"id": ensure_record_id(mindmap_id)})
-            raise HTTPException(status_code=500, detail=f"Failed to save nodes: {str(e)}")
+        for node in nodes_list:
+            node_result = await repo_query(
+                """
+                CREATE mindmap_node SET
+                mindmap = $mindmap_id,
+                label = $label,
+                summary = $summary,
+                level = $level,
+                source_refs = [],
+                position_x = $position_x,
+                position_y = $position_y
+                """,
+                {
+                    "mindmap_id": ensure_record_id(mindmap_id),
+                    "label": node["label"],
+                    "summary": node.get("summary", ""),
+                    "level": node.get("level", 0),
+                    "position_x": node.get("position_x", 0),
+                    "position_y": node.get("position_y", 0)
+                }
+            )
+            if node_result:
+                real_id = node_result[0]["id"]
+                idx_to_real_id[node["idx"]] = real_id
+                logger.debug(f"Created node idx={node['idx']} -> real_id={real_id}")
 
-        # ✅ Insert edges with error handling (non-fatal)
-        try:
-            for edge in edges:
+        # === CREATE EDGES USING REAL NODE IDs ===
+        edges_created = 0
+        for edge in edges_list:
+            parent_real_id = idx_to_real_id.get(edge["parent_idx"])
+            child_real_id = idx_to_real_id.get(edge["child_idx"])
+
+            if parent_real_id and child_real_id:
                 await repo_query(
                     """
                     CREATE mindmap_edge SET
@@ -205,22 +210,23 @@ async def generate_mindmap(notebook_id: str):
                     """,
                     {
                         "mindmap_id": ensure_record_id(mindmap_id),
-                        "from_node": edge["from_node"],
-                        "to_node": edge["to_node"],
-                        "relation_type": edge.get("relation_type", "parent-child")
+                        "from_node": str(parent_real_id),
+                        "to_node": str(child_real_id),
+                        "relation_type": "parent-child"
                     }
                 )
-        except Exception as e:
-            logger.warning(f"Edge insert failed, mindmap {mindmap_id} may have incomplete edges: {e}")
+                edges_created += 1
+            else:
+                logger.warning(f"Skipped edge: parent_idx={edge['parent_idx']} child_idx={edge['child_idx']} - ID not found")
 
-        logger.info(f"Successfully created mindmap {mindmap_id} with {len(nodes)} nodes and {len(edges)} edges")
+        logger.info(f"Successfully created mindmap {mindmap_id} with {len(idx_to_real_id)} nodes and {edges_created} edges")
 
         return {
             "id": mindmap_id,
             "notebook_id": notebook_id,
             "title": tree.get("root", notebook.name),
-            "node_count": len(nodes),
-            "edge_count": len(edges)
+            "node_count": len(idx_to_real_id),
+            "edge_count": edges_created
         }
 
     except HTTPException:
@@ -235,7 +241,7 @@ async def get_mindmap(notebook_id: str):
     """Get existing mind map for a notebook."""
     try:
         result = await repo_query(
-            "SELECT * FROM mindmap WHERE notebook = $notebook_id",
+            "SELECT * FROM mindmap WHERE notebook = $notebook_id ORDER BY created_at DESC LIMIT 1",
             {"notebook_id": ensure_record_id(notebook_id)}
         )
 
@@ -245,38 +251,36 @@ async def get_mindmap(notebook_id: str):
         mindmap_data = result[0]
         mindmap_id = mindmap_data["id"]
 
-        # Get nodes
         nodes_result = await repo_query(
             "SELECT * FROM mindmap_node WHERE mindmap = $mindmap_id",
             {"mindmap_id": ensure_record_id(mindmap_id)}
         )
 
-        # Get edges
         edges_result = await repo_query(
             "SELECT * FROM mindmap_edge WHERE mindmap = $mindmap_id",
             {"mindmap_id": ensure_record_id(mindmap_id)}
         )
-        
+
         return {
-            "id": mindmap_id,
+            "id": str(mindmap_id),
             "notebook_id": notebook_id,
             "title": mindmap_data.get("title"),
             "nodes": [
                 {
-                    "id": n["id"],
+                    "id": str(n["id"]),
                     "label": n.get("label"),
                     "summary": n.get("summary"),
                     "level": n.get("level", 0),
-                    "position_x": n.get("position_x"),
-                    "position_y": n.get("position_y")
+                    "position_x": n.get("position_x", 0),
+                    "position_y": n.get("position_y", 0)
                 }
                 for n in (nodes_result or [])
             ],
             "edges": [
                 {
-                    "id": e["id"],
-                    "from_node": e.get("from_node"),
-                    "to_node": e.get("to_node"),
+                    "id": str(e["id"]),
+                    "source": str(e.get("from_node")),
+                    "target": str(e.get("to_node")),
                     "relation_type": e.get("relation_type", "parent-child")
                 }
                 for e in (edges_result or [])
@@ -300,15 +304,14 @@ async def delete_mindmap(notebook_id: str):
         if not result:
             raise HTTPException(status_code=404, detail="Mind map not found")
 
-        mindmap_id = result[0]["id"]
-
-        # Delete edges, nodes, then mindmap (order matters for foreign keys)
-        await repo_query("DELETE FROM mindmap_edge WHERE mindmap = $id", {"id": ensure_record_id(mindmap_id)})
-        await repo_query("DELETE FROM mindmap_node WHERE mindmap = $id", {"id": ensure_record_id(mindmap_id)})
-        await repo_query("DELETE FROM mindmap WHERE id = $id", {"id": ensure_record_id(mindmap_id)})
+        for mindmap in result:
+            mindmap_id = mindmap["id"]
+            await repo_query("DELETE FROM mindmap_edge WHERE mindmap = $id", {"id": ensure_record_id(mindmap_id)})
+            await repo_query("DELETE FROM mindmap_node WHERE mindmap = $id", {"id": ensure_record_id(mindmap_id)})
+            await repo_query("DELETE FROM mindmap WHERE id = $id", {"id": ensure_record_id(mindmap_id)})
 
         return {"message": "Mind map deleted successfully"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
