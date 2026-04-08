@@ -110,7 +110,7 @@ export function AppSidebar() {
     <TooltipProvider delayDuration={0}>
       <div
         className={cn(
-          'app-sidebar flex h-full flex-col bg-sidebar border-sidebar-border border-r transition-all duration-300',
+          'app-sidebar flex h-full flex-col bg-sidebar border-l-4 border-l-primary shadow-lg transition-all duration-300',
           isCollapsed ? 'w-16' : 'w-64'
         )}
       >
@@ -124,7 +124,7 @@ export function AppSidebar() {
             <div className="relative flex items-center justify-center w-full">
               <Image
                 src="/logo.svg"
-                alt="Open Notebook"
+                alt="CogniFlow"
                 width={32}
                 height={32}
                 className="transition-opacity group-hover:opacity-0"

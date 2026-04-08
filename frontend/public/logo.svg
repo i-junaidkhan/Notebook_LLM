@@ -1,60 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Gradient Definitions -->
+  <!-- Gradient Definitions - Deep Ocean Tech -->
   <defs>
-    <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#bd34fe;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#41d1ff;stop-opacity:1" />
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
     </linearGradient>
-    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#bd34fe;stop-opacity:0.3" />
-      <stop offset="100%" style="stop-color:#41d1ff;stop-opacity:0.3" />
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:0.6" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:0.6" />
     </linearGradient>
   </defs>
 
-  <!-- Connection Lines -->
-  <g class="connections">
-    <path d="M120 80L80 120" stroke="url(#lineGradient)" stroke-width="2"/>
-    <path d="M120 80L160 120" stroke="url(#lineGradient)" stroke-width="2"/>
-    <path d="M80 120L120 160" stroke="url(#lineGradient)" stroke-width="2"/>
-    <path d="M160 120L120 160" stroke="url(#lineGradient)" stroke-width="2"/>
-    <path d="M80 120L160 120" stroke="url(#lineGradient)" stroke-width="2"/>
+  <!-- Background Circle (subtle) -->
+  <circle cx="120" cy="120" r="100" fill="oklch(0.97 0.005 252)" />
+
+  <!-- Flow Lines - Represents "Flow" in CogniFlow -->
+  <g class="flow-lines">
+    <path d="M70 120 Q120 80 170 120" stroke="url(#primaryGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M70 140 Q120 100 170 140" stroke="url(#accentGradient)" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M70 100 Q120 60 170 100" stroke="url(#accentGradient)" stroke-width="3" fill="none" stroke-linecap="round"/>
   </g>
 
-  <!-- Nodes -->
-  <g class="nodes">
-    <!-- Central Node -->
-    <circle cx="120" cy="80" r="20" fill="url(#nodeGradient)"/>
-    <circle cx="120" cy="80" r="24" stroke="url(#nodeGradient)" stroke-width="1" fill="none"/>
-    
-    <!-- Left Node -->
-    <circle cx="80" cy="120" r="16" fill="url(#nodeGradient)"/>
-    <circle cx="80" cy="120" r="20" stroke="url(#nodeGradient)" stroke-width="1" fill="none"/>
-    
-    <!-- Right Node -->
-    <circle cx="160" cy="120" r="16" fill="url(#nodeGradient)"/>
-    <circle cx="160" cy="120" r="20" stroke="url(#nodeGradient)" stroke-width="1" fill="none"/>
-    
-    <!-- Bottom Node -->
-    <circle cx="120" cy="160" r="18" fill="url(#nodeGradient)"/>
-    <circle cx="120" cy="160" r="22" stroke="url(#nodeGradient)" stroke-width="1" fill="none"/>
-  </g>
+  <!-- Central Node - Knowledge Hub -->
+  <circle cx="120" cy="120" r="28" fill="url(#primaryGradient)"/>
+  <circle cx="120" cy="120" r="32" stroke="url(#primaryGradient)" stroke-width="2" fill="none" opacity="0.5"/>
+
+  <!-- Orbiting Nodes - Connected Knowledge -->
+  <circle cx="120" cy="70" r="12" fill="url(#primaryGradient)" opacity="0.8"/>
+  <circle cx="170" cy="120" r="12" fill="url(#primaryGradient)" opacity="0.8"/>
+  <circle cx="120" cy="170" r="12" fill="url(#primaryGradient)" opacity="0.8"/>
+  <circle cx="70" cy="120" r="12" fill="url(#primaryGradient)" opacity="0.8"/>
+
+  <!-- Connection Dots -->
+  <circle cx="120" cy="95" r="3" fill="url(#accentGradient)"/>
+  <circle cx="145" cy="120" r="3" fill="url(#accentGradient)"/>
+  <circle cx="120" cy="145" r="3" fill="url(#accentGradient)"/>
+  <circle cx="95" cy="120" r="3" fill="url(#accentGradient)"/>
 
   <!-- Pulse Animation -->
   <style>
     @keyframes pulse {
-      0% { transform: scale(1); opacity: 0.8; }
-      50% { transform: scale(1.1); opacity: 1; }
-      100% { transform: scale(1); opacity: 0.8; }
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
     }
-    .nodes circle {
+    @keyframes orbit {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .flow-lines path {
       animation: pulse 3s infinite ease-in-out;
     }
-    .nodes circle:nth-child(2n) {
-      animation-delay: 1s;
+    .flow-lines path:nth-child(2) {
+      animation-delay: 0.5s;
     }
-    .nodes circle:nth-child(3n) {
-      animation-delay: 2s;
+    .flow-lines path:nth-child(3) {
+      animation-delay: 1s;
     }
   </style>
 </svg>
